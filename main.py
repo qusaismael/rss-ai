@@ -3,7 +3,7 @@ import schedule
 from telegram import Bot
 from datetime import datetime
 import os
-import google.generativeai as genai
+import openai
 import asyncio
 
 # Configuration
@@ -16,14 +16,16 @@ RSS_FEEDS = [
 
 TELEGRAM_BOT_TOKEN = 'Your bot token'
 TELEGRAM_USER_ID = 'Your Telegram ID'
-GEMINI_API_KEY = 'Your GEMINI FREEEEEE KEY'
+OPENROUTER_API_KEY = 'Your OPENROUTER API KEY'
 CHECK_INTERVAL = 15  # Check every 15 minutes
 LAST_CHECK_FILE = 'last_check.txt'
 
 # Initialize clients
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
-genai.configure(api_key=GEMINI_API_KEY)
-gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+openrouter_client = openai.OpenAI(
+    api_key=OPENROUTER_API_KEY,
+    base_url="https://openrouter.ai/api/v1"
+)
 
 def get_last_check_time():
     """Retrieve the last check timestamp from the file, creating it if it doesn't exist."""
@@ -40,26 +42,33 @@ def set_last_check_time(timestamp):
     with open(LAST_CHECK_FILE, 'w') as f:
         f.write(timestamp.isoformat())
 
-async def ask_gemini_about_headlines(headlines):
-    """Ask Gemini if headlines are worth sending."""
-    prompt = """You are a tech news filter. For each headline below, answer with ONLY 'YES' or 'NO' 
+async def ask_openrouter_about_headlines(headlines):
+    """Ask OpenRouter if headlines are worth sending."""
+    prompt = """You are a tech news filter. For each headline below, answer with ONLY 'YES' or 'NO'
     (one per line) indicating if it's important enough to disrupt a busy tech professional.
     Consider importance, novelty, and relevance to tech/startups/AI/science.
-    
+
 # if YES, then the bot will send it to me, if NO, then it is not important.
 
     Headlines:
     {}
     """.format("\n".join([f"{i+1}. {h['title']}" for i, h in enumerate(headlines)]))
-    
+
     try:
-        print(f"🧠 Consulting Gemini about {len(headlines)} headlines...")
-        response = await gemini_model.generate_content_async(prompt)
-        decisions = response.text.strip().split('\n')
-        print("✅ Gemini has made its decisions.")
+        print(f"🧠 Consulting OpenRouter about {len(headlines)} headlines...")
+        response = openrouter_client.chat.completions.create(
+            model="company-name/model-name",  # You can change this to any model available on OpenRouter
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=1000,
+            temperature=0.1
+        )
+        decisions = response.choices[0].message.content.strip().split('\n')
+        print("✅ OpenRouter has made its decisions.")
         return [d.strip().upper() == 'YES' for d in decisions]
     except Exception as e:
-        print(f"Error consulting Gemini: {e}")
+        print(f"Error consulting OpenRouter: {e}")
         return [True] * len(headlines)  # Default to sending if error
 
 async def check_rss():
@@ -82,8 +91,8 @@ async def check_rss():
                 })
     
     if new_articles:
-        print(f"Found {len(new_articles)} new articles. Filtering with Gemini...")
-        decisions = await ask_gemini_about_headlines(new_articles)
+        print(f"Found {len(new_articles)} new articles. Filtering with OpenRouter...")
+        decisions = await ask_openrouter_about_headlines(new_articles)
         for article, should_send in zip(new_articles, decisions):
             if should_send:
                 message = f"📰 {article['title']}\n\nSource: {article['source']}\n{article['link']}"

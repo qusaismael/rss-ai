@@ -1,4 +1,4 @@
 feedparser
 schedule
 python-telegram-bot
-google-generativeai 
+openai 
