@@ -61,7 +61,7 @@ async def ask_openrouter_about_headlines(headlines):
             messages=[
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=1000,
+            max_tokens=10000, # increase the max tokens to 10000, you can increase it more if you want.
             temperature=0.1
         )
         decisions = response.choices[0].message.content.strip().split('\n')
